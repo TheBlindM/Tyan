@@ -1,0 +1,43 @@
+[package]
+name = "Tyan"
+version = "0.1.0"
+edition = "2021"
+[workspace]
+members = ["."]
+
+
+[dependencies]
+tokio = { version = "1.44.2", features = ["full"] }
+futures = "0.3.31"
+clap = { version = "4.5.37", features = ["derive"] }
+ipnetwork = "0.20.0"  # 用于处理CIDR表示法
+pnet = "0.33.0"
+regex = "1.11.1"
+lazy_static = "1.5.0"
+anyhow = "1.0.98"
+rand = "0.8.5"
+russh-keys = { version = "0.45.0" }
+russh = "0.45.0"
+log = "0.4.21"
+env_logger = "0.11.2"
+serde = { version = "1.0.197", features = ["derive"] }
+serde_json = "1.0.114"
+shell-escape = "0.1.5"
+async-trait = "0.1.88"
+serde_yaml = "*"
+reqwest = { version = "0.12.15", features = ["rustls-tls", "gzip"] }
+lapin = { version = "2.3.1", features = ["rustls"] }  # RabbitMQ客户端库
+url = "2.5.0"  # URL解析
+md5 = "0.7.0"  # MD5计算，更新版本
+tokio-rustls = "0.24.1"  # TLS支持
+webpki-roots = "0.26.0"
+rustls-pki-types = "1.11.0"  # TLS根证书
+chrono = "0.4.35"  # 日期和时间处理
+dns-lookup = "2.0.4"  # DNS查询功能
+surge-ping = "0.8.0"
+
+ironrdp-connector = "0.4.0"  # 添加ironrdp-connector用于测试RDP连接
+
+once_cell = "1.21.3"
+
+parking_lot="*"
