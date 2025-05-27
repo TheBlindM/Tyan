@@ -47,7 +47,7 @@ cargo build --release
 /_/  \__, /\__,_/_/ /_/ 
     /____/              
     
-版本 v0.1.0
+版本 v0.1.1
 一款功能强大的内网安全扫描工具
 
 Usage: Tyan [OPTIONS] --host <HOSTS>
@@ -65,6 +65,10 @@ Options:
   -m, --mode <MODE>                    指定扫描模式 (例如：ModeService)
   -l, --log-level <LOG_LEVEL>          日志级别 (debug, info, warn, error) [default: info]
       --disable-brute                  禁用暴力破解
+      --password-file <PASSWORD_FILE>  密码文件路径               [aliases: --pwdf]
+      --username-file <USERNAME_FILE>  用户名文件路径             [aliases: --userf]
+      --additional-usernames <ADDITIONAL_USERNAMES>  附加用户名  [aliases: --usera]
+      --additional-passwords <ADDITIONAL_PASSWORDS>  附加密码    [aliases: --pwda]   
   -o, --output <OUTPUT_FILE>           将结果导出到文件，输出格式 (json, md)，根据输出文件后缀自动判断
       --help                           显示帮助信息
   -V, --version                        Print version
