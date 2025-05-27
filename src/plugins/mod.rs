@@ -2,10 +2,13 @@
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
 use std::path::Path;
 use std::sync::{Arc, OnceLock};
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
+use anyhow::Result;
 
 pub mod ssh_plugin;
 pub mod web_poc_plugin;
@@ -64,7 +67,7 @@ pub struct Draft<T: Clone + ToOwned> {
 }
 pub static CONFIG_GLOBAL: OnceCell<Config> = OnceCell::new();
 impl Config {
-    pub fn from_yaml<P: AsRef<Path>>(path: P) -> Result<Self, anyhow::Error> {
+    pub fn from_yaml<P: AsRef<Path>>(path: P) -> Result<Self> {
         let content = fs::read_to_string(path)?;
         let config: Config = serde_yaml::from_str(&content)?;
         Ok(config)
@@ -104,7 +107,11 @@ impl Config {
     }
     
     pub fn get_users_for_service(&self, service: &str) -> Option<&Vec<String>> {
-        self.userdict.get(service)
+        if self.userdict.contains_key(&String::from("customize")) {
+            self.userdict.get(&String::from("customize"))
+        }else {
+            self.userdict.get(service)
+        }
     }
     
     pub fn get_probes_for_port(&self, port: u16) -> Option<&Vec<String>> {
@@ -143,5 +150,34 @@ impl Config {
     
     pub fn get_brute_options(&self) -> &BruteOptions {
         &self.brute_options
+    }
+
+    pub fn set_pwds_by_file(&mut self, file:&str)->Result<()> {
+        let file = File::open(file)?;
+        let reader = BufReader::new(file);
+        self.passwords =  reader.lines().collect::<Result<Vec<String>, _>>()?;
+        Ok(())
+    }
+
+    pub fn set_users_by_file(&mut self, file:&str)->Result<()> {
+        let file = File::open(file)?;
+        let reader = BufReader::new(file);
+        let usernames= reader.lines().collect::<Result<Vec<String>, _>>()?;
+        self.userdict.insert(String::from("customize"),usernames);
+        Ok(())
+    }
+    
+    pub fn append_users(&mut self, usernames:Vec<String>)->Result<()> {
+        if(!usernames.is_empty()){
+            for passwords_list in self.userdict.values_mut() {
+                passwords_list.extend(usernames.clone());
+            }  
+        }
+        Ok(())
+    }
+
+    pub fn append_pwds(&mut self, pwds:Vec<String>)->Result<()> {
+        self.passwords.extend(pwds.clone());
+        Ok(())
     }
 }

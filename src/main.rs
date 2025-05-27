@@ -66,7 +66,23 @@ struct Cli {
     /// 禁用暴力破解
     #[arg(long = "disable-brute", action = ArgAction::SetTrue)]
     disable_brute: bool,
-    
+
+    ///密码文件路径
+    #[arg(long = "password-file",aliases = ["pwdf"])]
+    password_file: Option<String>,
+
+    ///用户名文件路径
+    #[arg(long = "username-file",aliases = ["userf"])]
+    username_file: Option<String>,
+
+    ///附加用户名
+    #[arg(long = "additional-usernames",aliases = ["usera"])]
+    additional_usernames: Option<String>,
+
+    ///附加密码
+    #[arg(long = "additional-passwords",aliases = ["pwda"])]
+    additional_passwords: Option<String>,
+
     /// 将结果导出到文件，输出格式 (json, md)，根据输出文件后缀自动判断
     #[arg(short = 'o', long = "output")]
     output_file: Option<String>,
@@ -119,6 +135,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let max_retries = cli.retries;
     let scan_mode = cli.mode.as_deref();
     let disable_brute = cli.disable_brute;
+    let password_file = cli.password_file;
+    let username_file = cli.username_file;
+    let additional_passwords = cli.additional_passwords;
+    let additional_usernames = cli.additional_usernames;
+    
     let output_file = cli.output_file.clone();
 
 
@@ -134,8 +155,32 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
     };
 
+    if let Some(password_file) =password_file{
+        config.set_pwds_by_file(&password_file)?;
+    }
+    if let Some(username_file) =username_file{
+        config.set_users_by_file(&username_file)?;
+    }
+
+    if let Some(additional_passwords) = additional_passwords {
+        let additional_passwords=  additional_passwords
+            .split(',')
+            .map(|s| s.trim().to_string()) 
+            .filter(|s| !s.is_empty()) 
+            .collect();
+        config.append_pwds(additional_passwords)?;
+    }
 
 
+    if let Some(additional_usernames) = additional_usernames {
+        let additional_usernames=  additional_usernames
+            .split(',')
+            .map(|s| s.trim().to_string()) 
+            .filter(|s| !s.is_empty()) 
+            .collect();
+        config.append_users(additional_usernames)?;
+    }
+    
     config.set_disable_brute(disable_brute);
     config.set_brute_max_retries(max_retries);
     config.set_time_out(timeout);
