@@ -68,19 +68,19 @@ struct Cli {
     disable_brute: bool,
 
     ///密码文件路径
-    #[arg(long = "password-file",aliases = ["pwdf"])]
+    #[arg(long = "password-file",visible_aliases = ["pwdf"])]
     password_file: Option<String>,
 
     ///用户名文件路径
-    #[arg(long = "username-file",aliases = ["userf"])]
+    #[arg(long = "username-file",visible_aliases = ["userf"])]
     username_file: Option<String>,
 
     ///附加用户名
-    #[arg(long = "additional-usernames",aliases = ["usera"])]
+    #[arg(long = "additional-usernames",visible_aliases = ["usera"])]
     additional_usernames: Option<String>,
 
     ///附加密码
-    #[arg(long = "additional-passwords",aliases = ["pwda"])]
+    #[arg(long = "additional-passwords",visible_aliases = ["pwda"])]
     additional_passwords: Option<String>,
 
     /// 将结果导出到文件，输出格式 (json, md)，根据输出文件后缀自动判断
@@ -139,7 +139,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let username_file = cli.username_file;
     let additional_passwords = cli.additional_passwords;
     let additional_usernames = cli.additional_usernames;
-    
+
     let output_file = cli.output_file.clone();
 
 
@@ -165,8 +165,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     if let Some(additional_passwords) = additional_passwords {
         let additional_passwords=  additional_passwords
             .split(',')
-            .map(|s| s.trim().to_string()) 
-            .filter(|s| !s.is_empty()) 
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
             .collect();
         config.append_pwds(additional_passwords)?;
     }
@@ -175,12 +175,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     if let Some(additional_usernames) = additional_usernames {
         let additional_usernames=  additional_usernames
             .split(',')
-            .map(|s| s.trim().to_string()) 
-            .filter(|s| !s.is_empty()) 
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
             .collect();
         config.append_users(additional_usernames)?;
     }
-    
+
     config.set_disable_brute(disable_brute);
     config.set_brute_max_retries(max_retries);
     config.set_time_out(timeout);
