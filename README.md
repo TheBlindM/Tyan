@@ -47,7 +47,7 @@ cargo build --release
 /_/  \__, /\__,_/_/ /_/ 
     /____/              
     
-版本 v0.1.1
+版本 v0.1.2
 一款功能强大的内网安全扫描工具
 
 Usage: Tyan [OPTIONS] --host <HOSTS>
@@ -55,6 +55,8 @@ Usage: Tyan [OPTIONS] --host <HOSTS>
 Options:
   -h, --host <HOSTS>                   目标主机 (例如: 192.168.1.1, 192.168.1.1/24, 192.168.1.1-192.168.1.100)
   -p, --port <PORT>                    目标端口 (例如: 80,443,8000-8100) [default: 21,22,80,443,3306,6379,8080]
+      --host-file                      目标主机文件      [aliases: --hf]
+      --port-file                      目标端口文件      [aliases: --pf]
       --exclude-ports <EXCLUDE_PORTS>  排除端口 (例如: 22,3306)
   -t, --threads <THREADS>              线程数 [default: 60]
       --timeout <TIMEOUT>              超时时间(秒) [default: 3]
