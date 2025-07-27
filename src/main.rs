@@ -1,6 +1,7 @@
 use clap::{Parser, ArgAction};
 use std::error::Error;
 use std::time::Duration;
+use std::fs;
 
 use ipnetwork::IpNetwork;
 use std::net::{Ipv4Addr, SocketAddr};
@@ -19,12 +20,20 @@ use Tyan::plugins::{Config, CONFIG_GLOBAL};
 #[command(name = "tyan", version = "0.1", about = "一款功能强大的内网安全扫描工具", disable_help_flag(true))]
 struct Cli {
     /// 目标主机 (例如: 192.168.1.1, 192.168.1.1/24, 192.168.1.1-192.168.1.100)
-    #[arg(short = 'h', long = "host", required = true)]
-    hosts: String,
+    #[arg(short = 'h', long = "host")]
+    hosts: Option<String>,
 
-    /// 目标端口 (例如: 80,443,8000-8100)
-    #[arg(short, long, default_value = "21,22,80,443,3306,6379,8080")]
-    port: String,
+    /// 从文件读取目标主机列表
+    #[arg(long = "host-file", visible_aliases = ["hf"])]
+    host_file: Option<String>,
+
+    /// 目标端口 (例如: 80,443,8000-8100) 默认为21,22,80,443,3306,6379,8080
+    #[arg(short, long)]
+    port: Option<String>,
+
+    /// 从文件读取目标端口列表
+    #[arg(long = "port-file", visible_aliases = ["pf"])]
+    port_file: Option<String>,
 
     /// 排除端口 (例如: 22,3306)
     #[arg(long = "exclude-ports")]
@@ -124,9 +133,46 @@ async fn main() -> Result<(), Box<dyn Error>> {
     
 
     
-    // 解析参数
-    let host_str = &cli.hosts;
-    let port_str = &cli.port;
+    // 解析参数 - 处理主机参数（支持合并）
+    let mut host_parts = Vec::new();
+    
+    // 从命令行参数添加主机
+    if let Some(hosts) = &cli.hosts {
+        host_parts.push(hosts.clone());
+    }
+    
+    // 从文件添加主机
+    if let Some(host_file) = &cli.host_file {
+        let file_hosts = read_hosts_from_file(host_file)?;
+        host_parts.push(file_hosts);
+    }
+    
+    if host_parts.is_empty() {
+        return Err("必须指定主机参数 (-h/--host) 或主机文件 (--host-file/hf)".into());
+    }
+
+    let host_str=host_parts.join(",");
+
+    // 处理端口参数（支持合并）
+    let mut port_parts = Vec::new();
+    
+    // 从命令行参数添加端口
+    if let Some(port) = &cli.port {
+        port_parts.push(port.split(",").collect());
+    }
+    
+    // 从文件添加端口
+    if let Some(port_file) = &cli.port_file {
+        let file_ports = read_ports_from_file(port_file)?;
+        port_parts.push(file_ports);
+    }
+    
+    // 如果没有指定任何端口，使用默认端口
+    let port_str = if port_parts.is_empty() {
+        "21,22,80,443,3306,6379,8080".to_string()
+    } else {
+        port_parts.join(",")
+    };
     let thread_num = cli.threads.parse::<usize>().unwrap_or(60);
     let timeout = cli.timeout.parse::<u64>().unwrap_or(3);
     let use_ping = cli.ping;
@@ -200,10 +246,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // 创建结果存储
-    let result_storage = ResultStorage::new(host_str);
+    let result_storage = ResultStorage::new(&host_str);
     
     // 解析主机
-    let hosts = parse_ip_range(host_str)?;
+    let hosts = parse_ip_range(&host_str)?;
     debug!("解析到IP地址数量: {}", hosts.len());
     if hosts.len() < 10 {
         debug!("IP地址列表: {:?}", hosts);
@@ -225,7 +271,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         info!("开始端口扫描...");
         let mut scanner = PortScanner::new(timeout, thread_num);
         
-        let mut ports = PortScanner::parse_ports(port_str);
+        let mut ports = PortScanner::parse_ports(&port_str);
         
         if let Some(exclude_ports_str) = &cli.exclude_ports {
             ports = PortScanner::exclude_ports(ports, exclude_ports_str);
@@ -367,11 +413,52 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+/// 从文件读取主机列表
+fn read_hosts_from_file(file_path: &str) -> Result<String, Box<dyn Error>> {
+    let content = fs::read_to_string(file_path)
+        .map_err(|e| format!("无法读取主机文件 {}: {}", file_path, e))?;
+    
+    let hosts: Vec<String> = content
+        .lines()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .map(|line| line.to_string())
+        .collect();
+    
+    if hosts.is_empty() {
+        return Err(format!("主机文件 {} 为空或没有有效的主机条目", file_path).into());
+    }
+    
+    info!("从文件 {} 读取到 {} 个主机条目", file_path, hosts.len());
+    Ok(hosts.join(","))
+}
+
+/// 从文件读取端口列表
+fn read_ports_from_file(file_path: &str) -> Result<String, Box<dyn Error>> {
+    let content = fs::read_to_string(file_path)
+        .map_err(|e| format!("无法读取端口文件 {}: {}", file_path, e))?;
+    
+    let ports: Vec<String> = content
+        .lines()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .map(|line| line.to_string())
+        .collect();
+    
+    if ports.is_empty() {
+        return Err(format!("端口文件 {} 为空或没有有效的端口条目", file_path).into());
+    }
+    
+    info!("从文件 {} 读取到 {} 个端口条目", file_path, ports.len());
+    Ok(ports.join(","))
+}
+
 /// 解析IP范围
 fn parse_ip_range(ip_str: &str) -> Result<Vec<String>, Box<dyn Error>> {
     let mut result = Vec::new();
 
     // 处理逗号分隔的多个目标
+    //todo 后期将ip_str 改为直接接收vec，因为hf 下直接是vec，提高效率
     if ip_str.contains(',') {
         for part in ip_str.split(',') {
             let part_result = parse_ip_range(part.trim())?;
