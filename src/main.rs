@@ -138,13 +138,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     
     // 从命令行参数添加主机
     if let Some(hosts) = &cli.hosts {
-        host_parts.push(hosts.clone());
+        host_parts.extend(hosts.split(",").map(|s| s.to_string()));
     }
     
     // 从文件添加主机
     if let Some(host_file) = &cli.host_file {
         let file_hosts = read_hosts_from_file(host_file)?;
-        host_parts.push(file_hosts);
+        host_parts.extend(file_hosts);
     }
     
     if host_parts.is_empty() {
@@ -158,13 +158,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     
     // 从命令行参数添加端口
     if let Some(port) = &cli.port {
-        port_parts.push(port.split(",").collect());
+        port_parts.extend(port.split(",").map(|s| s.to_string()));
     }
     
     // 从文件添加端口
     if let Some(port_file) = &cli.port_file {
         let file_ports = read_ports_from_file(port_file)?;
-        port_parts.push(file_ports);
+        port_parts.extend(file_ports);
     }
     
     // 如果没有指定任何端口，使用默认端口
@@ -318,12 +318,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
             // 保存服务识别结果
             result_storage.save_service_scan_results(&all_service_results);
             
-            info!("识别到的服务数量: {}", results.len());
+            info!("识别到的服务数量: {}", all_service_results.len());
             
             // 输出结果
-            for result in results {
+            for result in all_service_results {
                 let service = result.service;
-                if service.name != "unknown" {
+
                     let mut output_str = format!("{} => {}", result.address, service.name);
                     
                     // 如果是详细模式，显示更多信息
@@ -336,7 +336,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         }
                     }
                     info!("{}", output_str);
-                }
+
             }
         }
         
@@ -414,7 +414,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 }
 
 /// 从文件读取主机列表
-fn read_hosts_from_file(file_path: &str) -> Result<String, Box<dyn Error>> {
+fn read_hosts_from_file(file_path: &str) -> Result<Vec<String>, Box<dyn Error>> {
     let content = fs::read_to_string(file_path)
         .map_err(|e| format!("无法读取主机文件 {}: {}", file_path, e))?;
     
@@ -430,11 +430,11 @@ fn read_hosts_from_file(file_path: &str) -> Result<String, Box<dyn Error>> {
     }
     
     info!("从文件 {} 读取到 {} 个主机条目", file_path, hosts.len());
-    Ok(hosts.join(","))
+    Ok(hosts)
 }
 
 /// 从文件读取端口列表
-fn read_ports_from_file(file_path: &str) -> Result<String, Box<dyn Error>> {
+fn read_ports_from_file(file_path: &str) -> Result<Vec<String>, Box<dyn Error>> {
     let content = fs::read_to_string(file_path)
         .map_err(|e| format!("无法读取端口文件 {}: {}", file_path, e))?;
     
@@ -450,7 +450,7 @@ fn read_ports_from_file(file_path: &str) -> Result<String, Box<dyn Error>> {
     }
     
     info!("从文件 {} 读取到 {} 个端口条目", file_path, ports.len());
-    Ok(ports.join(","))
+    Ok(ports)
 }
 
 /// 解析IP范围
