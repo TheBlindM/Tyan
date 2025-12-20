@@ -4,24 +4,26 @@ use std::time::Duration;
 use std::fs;
 
 use ipnetwork::IpNetwork;
-use std::net::{Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::ptr::null;
 use std::str::FromStr;
+use dns_lookup::lookup_host;
 use Tyan::core::host_discovery::HostDiscovery;
-use Tyan::core::port_scanner::PortScanner;
+
 use Tyan::core::service_info::{ServiceInfo, ServiceScanner, ServiceScanOptions};
 use Tyan::core::scanner::{PluginRegistry, HostInfo};
 use Tyan::core::result_storage::{ResultStorage, OutputFormat};
 use log::{debug, info, warn, error, LevelFilter};
 use env_logger::Builder;
 use Tyan::plugins::{Config, CONFIG_GLOBAL};
+use Tyan::scanner::PortScanner;
 
 #[derive(Parser)]
 #[command(name = "tyan", version = "0.1", about = "一款功能强大的内网安全扫描工具", disable_help_flag(true))]
 struct Cli {
     /// 目标主机 (例如: 192.168.1.1, 192.168.1.1/24, 192.168.1.1-192.168.1.100)
-    #[arg(short = 'h', long = "host")]
-    hosts: Option<String>,
+    #[arg(short = 'h', long = "host",value_delimiter = ',')]
+    hosts: Option<Vec<String>>,
 
     /// 从文件读取目标主机列表
     #[arg(long = "host-file", visible_aliases = ["hf"])]
@@ -36,12 +38,12 @@ struct Cli {
     port_file: Option<String>,
 
     /// 排除端口 (例如: 22,3306)
-    #[arg(long = "exclude-ports")]
-    exclude_ports: Option<String>,
+    #[arg(long = "exclude-ports",value_delimiter = ',')]
+    exclude_ports: Option<Vec<u16>>,
 
-    /// 线程数
-    #[arg(short, long, default_value = "60")]
-    threads: String,
+    /// 批处理大小
+    #[arg(short, long, default_value = "4500")]
+    batch_size: usize,
 
     /// 超时时间(秒)
     #[arg(long, default_value = "3")]
@@ -134,12 +136,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     
     // 解析参数 - 处理主机参数（支持合并）
-    let mut host_parts = Vec::new();
+    let mut host_parts = cli.hosts.unwrap_or_default();
     
-    // 从命令行参数添加主机
-    if let Some(hosts) = &cli.hosts {
-        host_parts.extend(hosts.split(",").map(|s| s.to_string()));
-    }
+    // // 从命令行参数添加主机
+    // if let Some(hosts) = &cli.hosts.len()>0 {
+    //     host_parts.extend(hosts.split(",").map(|s| s.to_string()));
+    // }
     
     // 从文件添加主机
     if let Some(host_file) = &cli.host_file {
@@ -173,7 +175,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     } else {
         port_parts.join(",")
     };
-    let thread_num = cli.threads.parse::<usize>().unwrap_or(60);
+    let batch_size = cli.batch_size;
     let timeout = cli.timeout.parse::<u64>().unwrap_or(3);
     let use_ping = cli.ping;
     let skip_ping = cli.no_ping;
@@ -228,7 +230,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     config.set_disable_brute(disable_brute);
-    config.set_brute_max_retries(max_retries);
+    config.set_brute_max_retries(max_retries.clone());
     config.set_time_out(timeout);
     config.set_ssh_key_path(None);
     Config::init_global(config);
@@ -250,6 +252,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     
     // 解析主机
     let hosts = parse_ip_range(&host_str)?;
+
+
     debug!("解析到IP地址数量: {}", hosts.len());
     if hosts.len() < 10 {
         debug!("IP地址列表: {:?}", hosts);
@@ -269,15 +273,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // 端口扫描
     if !alive_hosts.is_empty() {
         info!("开始端口扫描...");
-        let mut scanner = PortScanner::new(timeout, thread_num);
-        
-        let mut ports = PortScanner::parse_ports(&port_str);
-        
-        if let Some(exclude_ports_str) = &cli.exclude_ports {
-            ports = PortScanner::exclude_ports(ports, exclude_ports_str);
-        }
-        
-        let alive_addrs = scanner.scan(alive_hosts, ports).await;
+        let ports = PortScanner::parse_ports(&port_str);
+
+        let scanner = PortScanner::new(&*alive_hosts, ports, cli.exclude_ports.unwrap_or_default(), timeout, batch_size, max_retries);
+
+        let alive_addrs = scanner.run().await;
         info!("开放端口数量: {}", alive_addrs.len());
         
         result_storage.save_port_scan_results(&alive_addrs);
@@ -294,7 +294,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 ServiceScanOptions {
                     timeout: Duration::from_secs(timeout),
                     max_retries,
-                    concurrent_limit: thread_num,
+                    concurrent_limit: batch_size,
                 }
             );
             
@@ -454,7 +454,7 @@ fn read_ports_from_file(file_path: &str) -> Result<Vec<String>, Box<dyn Error>> 
 }
 
 /// 解析IP范围
-fn parse_ip_range(ip_str: &str) -> Result<Vec<String>, Box<dyn Error>> {
+fn parse_ip_range(ip_str: &str) -> Result<Vec<IpAddr>, Box<dyn Error>> {
     let mut result = Vec::new();
 
     // 处理逗号分隔的多个目标
@@ -470,9 +470,16 @@ fn parse_ip_range(ip_str: &str) -> Result<Vec<String>, Box<dyn Error>> {
     if ip_str.contains('/') {
         // 处理CIDR
         let network = IpNetwork::from_str(ip_str)?;
-        if let IpNetwork::V4(network) = network {
-            for ip in network.iter() {
-                result.push(ip.to_string());
+        match network {
+            IpNetwork::V4(network) => {
+                for ip in network.iter() {
+                    result.push(IpAddr::V4(ip));
+                }
+            }
+            IpNetwork::V6(network) => {
+                for ip in network.iter() {
+                    result.push(IpAddr::V6(ip));
+                }
             }
         }
     } else if ip_str.contains('-') {
@@ -487,15 +494,27 @@ fn parse_ip_range(ip_str: &str) -> Result<Vec<String>, Box<dyn Error>> {
             
             for i in start_u32..=end_u32 {
                 let ip = Ipv4Addr::from(i);
-                result.push(ip.to_string());
+                result.push(IpAddr::V4(ip));
             }
         }
     } else {
         // 尝试DNS解析主机名或直接使用IP
-        // 这里简单处理，直接将字符串添加到结果中
-        // 注：实际生产环境可能需要进行DNS解析
-        result.push(ip_str.to_string());
+        if let Ok(ip) = ip_str.parse::<IpAddr>() {
+            result.push(ip);
+        } else {
+            // 进行DNS解析
+            match lookup_host(ip_str) {
+                Ok(ips) => {
+                    result.extend(ips);
+                }
+                Err(e) => {
+                    return Err(format!("无法解析主机: {} - {}", ip_str, e).into());
+                }
+            }
+        }
     }
 
     Ok(result)
 }
+
+

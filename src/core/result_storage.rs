@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
+use std::net::IpAddr;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
@@ -18,7 +19,7 @@ pub struct ScanResultData {
     pub target: String,
     
     /// 主机发现阶段的结果 - 所有存活的主机
-    pub alive_hosts: Vec<String>,
+    pub alive_hosts: Vec<IpAddr>,
     
     /// 端口扫描结果
     pub open_ports: HashMap<String, Vec<u16>>,
@@ -107,7 +108,7 @@ impl ResultStorage {
         }
     }
 
-    pub fn save_host_discovery_results(&self, hosts: Vec<String>) {
+    pub fn save_host_discovery_results(&self, hosts: Vec<IpAddr>) {
         let mut data = self.data.lock().unwrap();
         data.alive_hosts = hosts;
     }
