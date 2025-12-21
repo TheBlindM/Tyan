@@ -96,13 +96,13 @@ impl PortScanner {
             batch_count += 1;
 
             if batch_count >= batch_size_log {
-                info!("扫描进度: {}/{} ({}%)", 
+                print!("\r扫描进度: {}/{} ({}%)",
                     completed_tasks, total_tasks, 
                     (completed_tasks as f32 / total_tasks as f32 * 100.0) as u8);
                 batch_count = 0;
             }
         }
-
+        println!();
         info!("扫描完成 {}/{} (100%)", completed_tasks, total_tasks);
         alive_addrs
     }
