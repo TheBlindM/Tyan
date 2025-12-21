@@ -15,93 +15,12 @@ use Tyan::core::scanner::{PluginRegistry, HostInfo};
 use Tyan::core::result_storage::{ResultStorage, OutputFormat};
 use log::{debug, info, warn, error, LevelFilter};
 use env_logger::Builder;
+use Tyan::input::{Cli, ScanOrder};
 use Tyan::plugins::{Config, CONFIG_GLOBAL};
+use Tyan::port_strategy::PortStrategy;
 use Tyan::scanner::PortScanner;
 
-#[derive(Parser)]
-#[command(name = "tyan", version = "0.1", about = "一款功能强大的内网安全扫描工具", disable_help_flag(true))]
-struct Cli {
-    /// 目标主机 (例如: 192.168.1.1, 192.168.1.1/24, 192.168.1.1-192.168.1.100)
-    #[arg(short = 'h', long = "host",value_delimiter = ',')]
-    hosts: Option<Vec<String>>,
 
-    /// 从文件读取目标主机列表
-    #[arg(long = "host-file", visible_aliases = ["hf"])]
-    host_file: Option<String>,
-
-    /// 目标端口 (例如: 80,443,8000-8100) 默认为21,22,80,443,3306,6379,8080
-    #[arg(short, long)]
-    port: Option<String>,
-
-    /// 从文件读取目标端口列表
-    #[arg(long = "port-file", visible_aliases = ["pf"])]
-    port_file: Option<String>,
-
-    /// 排除端口 (例如: 22,3306)
-    #[arg(long = "exclude-ports",value_delimiter = ',')]
-    exclude_ports: Option<Vec<u16>>,
-
-    /// 批处理大小
-    #[arg(short, long, default_value = "4500")]
-    batch_size: usize,
-
-    /// 超时时间(秒)
-    #[arg(long, default_value = "3")]
-    timeout: String,
-
-    /// 使用系统ping代替ICMP
-    #[arg(long, action = ArgAction::SetTrue)]
-    ping: bool,
-
-    /// 跳过存活检测
-    #[arg(long, action = ArgAction::SetTrue)]
-    no_ping: bool,
-    
-    /// 服务指纹识别
-    #[arg(short, long, action = ArgAction::SetTrue)]
-    fingerprint: bool,
-    
-    
-    ///最大重试次数
-    #[arg(long, default_value = "3")]
-    retries: u8,
-
-    /// 指定扫描模式 (例如：ModeService)
-    #[arg(short = 'm', long = "mode")]
-    mode: Option<String>,
-    
-    /// 日志级别 (debug, info, warn, error)
-    #[arg(short = 'l', long = "log-level", default_value = "info")]
-    log_level: String,
-    
-    /// 禁用暴力破解
-    #[arg(long = "disable-brute", action = ArgAction::SetTrue)]
-    disable_brute: bool,
-
-    ///密码文件路径
-    #[arg(long = "password-file",visible_aliases = ["pwdf"])]
-    password_file: Option<String>,
-
-    ///用户名文件路径
-    #[arg(long = "username-file",visible_aliases = ["userf"])]
-    username_file: Option<String>,
-
-    ///附加用户名
-    #[arg(long = "additional-usernames",visible_aliases = ["usera"])]
-    additional_usernames: Option<String>,
-
-    ///附加密码
-    #[arg(long = "additional-passwords",visible_aliases = ["pwda"])]
-    additional_passwords: Option<String>,
-
-    /// 将结果导出到文件，输出格式 (json, md)，根据输出文件后缀自动判断
-    #[arg(short = 'o', long = "output")]
-    output_file: Option<String>,
-    
-    /// 显示帮助信息
-    #[arg(long = "help", action = ArgAction::Help)]
-    help: Option<bool>,
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -275,7 +194,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         info!("开始端口扫描...");
         let ports = PortScanner::parse_ports(&port_str);
 
-        let scanner = PortScanner::new(&*alive_hosts, ports, cli.exclude_ports.unwrap_or_default(), timeout, batch_size, max_retries);
+        let scanner = PortScanner::new(&*alive_hosts, PortStrategy::pick(ports, cli.port_scan_order), cli.exclude_ports.unwrap_or_default(), timeout, batch_size, max_retries);
 
         let alive_addrs = scanner.run().await;
         info!("开放端口数量: {}", alive_addrs.len());

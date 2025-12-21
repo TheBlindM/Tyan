@@ -14,6 +14,7 @@ use log::{debug, info};
 use crate::core::service_info::{ServiceInfo, identify_service};
 use crate::scanner::socket_iterator::SocketIterator;
 use anyhow::{anyhow, Result};
+use crate::port_strategy::PortStrategy;
 
 mod socket_iterator;
 
@@ -27,7 +28,7 @@ pub struct ScanResult {
 /// 端口扫描器  
 pub struct PortScanner {
     ips: Vec<IpAddr>,
-    ports: Vec<u16>,
+    port_strategy: PortStrategy,
     exclude_ports: Vec<u16>,
     timeout: Duration,
     batch_size: usize,
@@ -36,10 +37,10 @@ pub struct PortScanner {
 }
 
 impl PortScanner {
-    pub fn new(ips: &[IpAddr], ports: Vec<u16>,exclude_ports: Vec<u16>,timeout_secs: u64, batch_size: usize,    tries: u8) -> Self {
+    pub fn new(ips: &[IpAddr],port_strategy: PortStrategy,exclude_ports: Vec<u16>,timeout_secs: u64, batch_size: usize,    tries: u8) -> Self {
         PortScanner {
             ips: ips.iter().map(ToOwned::to_owned).collect(),
-            ports,
+            port_strategy,
             exclude_ports,
             timeout: Duration::from_secs(timeout_secs),
             batch_size,
@@ -52,7 +53,8 @@ impl PortScanner {
         let mut alive_addrs = Vec::new();
         let hosts= &self.ips;
         let ports: Vec<u16> = self
-            .ports
+            .port_strategy
+            .order()
             .iter()
             .filter(|&port| !self.exclude_ports.contains(port))
             .copied()
