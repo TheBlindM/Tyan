@@ -119,19 +119,19 @@ impl PortScanner {
             match self.connect(socket).await {
                 Ok(mut tcp_stream) => {
                     debug!(
-                        "Connection was successful, shutting down stream {}",
+                        "连接成功，正在关闭流 {}",
                         &socket
                     );
                     if let Err(e) = tcp_stream.shutdown().await {
                         debug!("Shutdown stream error {}", &e);
                     }
-                    debug!("Return Ok after {nr_try} tries");
+                    debug!("尝试 {nr_try} 后成功");
                     return Ok(socket);
                 }
                 Err(e) => {
                     let mut error_string = e.to_string();
 
-                    assert!(!error_string.to_lowercase().contains("too many open files"), "Too many open files. Please reduce batch size. The default is 5000. Try -b 2500.");
+                    assert!(!error_string.to_lowercase().contains("too many open files"), "打开的文件过多。请减少批处理大小。默认值为5000。可尝试使用-b 2500参数。");
 
                     if nr_try == tries {
                         error_string.push(' ');
