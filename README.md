@@ -47,7 +47,7 @@ cargo build --release
 /_/  \__, /\__,_/_/ /_/ 
     /____/              
     
-版本 v0.1.2
+版本 v0.1.4
 一款功能强大的内网安全扫描工具
 
 Usage: Tyan [OPTIONS] --host <HOSTS>
@@ -58,7 +58,8 @@ Options:
       --host-file                      目标主机文件      [aliases: --hf]
       --port-file                      目标端口文件      [aliases: --pf]
       --exclude-ports <EXCLUDE_PORTS>  排除端口 (例如: 22,3306)
-  -t, --threads <THREADS>              线程数 [default: 60]
+      --port-scan-order <PORT_SCAN_ORDER> 要执行的扫描顺序。"serial" 选项将按升序扫描端口， 而 "random" 选项将随机扫描端口。 [default: serial] [possible values: serial, random]
+  -b, --batch-size <BATCH_SIZE>        批处理大小 [default: 1500]
       --timeout <TIMEOUT>              超时时间(秒) [default: 3]
       --ping                           使用系统ping代替ICMP
       --no-ping                        跳过存活检测
@@ -114,8 +115,8 @@ SSH 模块支持并发密码暴力破解，相比顺序执行大幅提高效率�
 # 使用系统 ping 替代 ICMP
 ./Tyan -h 192.168.1.0/24 -p 80,443 --ping
 
-# 设置超时和线程数
-./Tyan -h 192.168.1.0/24 -p 80,443 -t 100 --timeout 5
+# 设置超时和批处理数量
+./Tyan -h 192.168.1.0/24 -p 80,443 -b 100 --timeout 5
 
 # 禁用暴力破解模块
 ./Tyan -h 192.168.1.0/24 -p 80,443 --disable-brute
@@ -147,6 +148,7 @@ cargo build
 ## 致谢
 
 - fscan项目
+- RustScan项目
 - 影舞者的指导
 
 ----
