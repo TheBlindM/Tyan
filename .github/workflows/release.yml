@@ -43,5 +43,6 @@ jobs:
           bin: Tyan
           # (optional) Target triple, default is host triple.
           target: ${{ matrix.target }}
+          locked: true
           # (required) GitHub token for uploading assets to GitHub Releases.
           token: ${{ secrets.GITHUB_TOKEN }}
