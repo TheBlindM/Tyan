@@ -47,7 +47,7 @@ cargo build --release
 /_/  \__, /\__,_/_/ /_/ 
     /____/              
     
-版本 v0.1.4
+版本 XXXX
 一款功能强大的内网安全扫描工具
 
 Usage: Tyan [OPTIONS] --host <HOSTS>
