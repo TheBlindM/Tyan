@@ -9,7 +9,7 @@ use std::io::{self, Read, Write};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use log::{debug, info};
+use log::{debug, error, info};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{lookup_host, TcpStream};
 use tokio::time::timeout;
@@ -352,6 +352,21 @@ fn parse_probe_data(data: &str) -> Result<Vec<u8>> {
 
     Ok(final_result)
 }
+
+async fn connect_target(
+    socket_addr: SocketAddr,
+    timeout_duration: Duration,
+) -> Result<TcpStream> {
+    let connect_future = TcpStream::connect(socket_addr);
+    let connect_result = timeout(timeout_duration, connect_future).await;
+
+    match connect_result {
+        Ok(Ok(stream)) => Ok(stream),
+        Ok(Err(e)) => Err(anyhow!("连接错误: {}", e)),
+        Err(_) => Err(anyhow!("连接超时")),
+    }
+}
+
 pub async fn identify_service(
     addr: &str,
     port: u16,
@@ -401,14 +416,7 @@ async fn identify_service_internal(
     let mut addrs = lookup_host((addr, port)).await?;
     let socket_addr = addrs.next().ok_or_else(|| anyhow!("域名解析失败"))?;
     // let socket_addr: SocketAddr = format!("{}:{}", addr, port).parse()?;
-    let connect_future = TcpStream::connect(socket_addr);
-    let connect_result = timeout(timeout_duration, connect_future).await;
-
-    let mut stream = match connect_result {
-        Ok(Ok(stream)) => stream,
-        Ok(Err(e)) => return Err(anyhow!("连接错误: {}", e)),
-        Err(_) => return Err(anyhow!("连接超时")),
-    };
+    let mut stream = connect_target(socket_addr, timeout_duration).await?;
 
 
     let response = read_response_enhanced(&mut stream, timeout_duration).await?;
@@ -445,10 +453,21 @@ async fn identify_service_internal(
 
    
     debug!("尝试端口专用探测器");
+    let probes_count_before = used_probes.len();
     if let Some(info) =
         process_port_map_probes(&mut stream, port, &mut used_probes, timeout_duration).await?
     {
         return Ok(info);
+    }
+
+    if used_probes.len() > probes_count_before {
+        debug!("端口专用探测器未匹配，尝试重连以清除连接状态");
+        if let Ok(new_stream) = connect_target(socket_addr, timeout_duration).await {
+            stream = new_stream;
+        } else {
+             // 重连失败，记录日志但继续尝试（可能会失败）
+             debug!("重连失败，继续使用现有连接");
+        }
     }
     debug!("尝试默认探测器");
     if let Some(info) =
